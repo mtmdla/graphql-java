@@ -521,6 +521,50 @@ class FieldVisibilitySchemaTransformationTest extends Specification {
         restrictedSchema.getType("PublicView") != null
     }
 
+    def "removes interfaces when there are multiple interfaces and interfaces collide with an enum"() {
+        given:
+        GraphQLSchema schema = TestUtil.schema("""
+
+        directive @private on FIELD_DEFINITION
+
+        type Query {
+            field1: String
+        }
+
+        extend type Query {
+            allTheThings: Container! @private
+        }
+        
+        type Container {                        
+            things: [MyInterface!]!            
+        }
+
+        interface MyInterface {
+            type: SuperCoolEnum
+        }
+
+        # this one causes it to fail when removing types
+        interface SomeOtherName {
+            type: SuperCoolEnum
+        }
+
+        enum SuperCoolEnum {
+            ONE,
+            TWO
+        }
+
+        """)
+
+        when:
+        GraphQLSchema restrictedSchema = visibilitySchemaTransformation.apply(schema)
+
+        then:
+        restrictedSchema.getType("Container") == null
+        restrictedSchema.getType("MyInterface") == null
+        restrictedSchema.getType("SomeOtherName") == null
+        restrictedSchema.getType("SuperCoolEnum") == null
+    }
+
     def "primitive types are retained"() {
         given:
         GraphQLSchema schema = TestUtil.schema("""
